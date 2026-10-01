@@ -1,0 +1,15 @@
+{
+  "name": "claude-chat-transfer",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "description": "Chrome extension: move one Claude chat's context between accounts.",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node tools/check.mjs",
+    "icons": "node tools/make-icons.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

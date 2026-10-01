@@ -1,0 +1,36 @@
+<!-- Mimics the shape of a claude.ai chat page: data-testid message wrappers,
+     a prose body, code blocks, nested lists, a table, links, an artifact and
+     an attachment chip. Deliberately not a copy of the real markup. -->
+<main>
+  <div class="flex overflow-y-auto">
+    <div data-testid="user-message">
+      <p>Can you help me with the <strong>parser</strong>? Here is the <code>input</code>.</p>
+      <div data-testid="file-thumbnail" title="notes.md">notes.md</div>
+    </div>
+
+    <div class="font-claude-response">
+      <p>Sure. Here is the plan:</p>
+      <ul>
+        <li>Read the file
+          <ul>
+            <li>handle UTF-8</li>
+            <li>handle CRLF</li>
+          </ul>
+        </li>
+        <li>Parse it</li>
+      </ul>
+      <pre><code class="language-js">const x = 1;
+console.log(x);</code></pre>
+      <p>See <a href="https://example.com/docs">the docs</a> for details.</p>
+      <table>
+        <tr><th>Field</th><th>Type</th></tr>
+        <tr><td>name</td><td>string</td></tr>
+      </table>
+      <div data-testid="artifact-block" aria-label="parser.js">function parse() {}</div>
+    </div>
+
+    <div data-testid="user-message">
+      <p>Great, ship it.</p>
+    </div>
+  </div>
+</main>
