@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Claude Chat Transfer — Options</title>
+  <link rel="stylesheet" href="popup.css">
+  <style>
+    body { width: auto; max-width: 620px; padding: 24px; }
+    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+         margin: 24px 0 8px; border-top: 1px solid var(--line); padding-top: 16px; }
+    h2:first-of-type { border-top: none; margin-top: 12px; }
+    label.field { display: block; margin: 10px 0; }
+    label.field span { display: block; font-weight: 600; margin-bottom: 4px; }
+    input[type=text], input[type=password], select { width: 100%; padding: 6px 8px;
+      border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+    .note { background: #faf9f7; border: 1px solid var(--line); border-left: 3px solid var(--accent);
+      border-radius: 4px; padding: 10px; font-size: 12px; color: #444; margin: 10px 0; }
+    .row { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Claude Chat Transfer — Options</h1>
+
+  <h2>Handoff brief</h2>
+  <label class="field">
+    <span>How to generate the brief</span>
+    <select id="briefMode">
+      <option value="chat">Ask the open chat (default, no API key)</option>
+      <option value="api">Use the Anthropic API (needs a key)</option>
+      <option value="none">Don't generate a brief</option>
+    </select>
+  </label>
+
+  <div id="apiFields" hidden>
+    <label class="field">
+      <span>Anthropic API key</span>
+      <input id="apiKey" type="password" placeholder="sk-ant-…" autocomplete="off">
+    </label>
+    <label class="field">
+      <span>Model</span>
+      <select id="apiModel">
+        <option value="claude-sonnet-5">Claude Sonnet 5</option>
+        <option value="claude-opus-5">Claude Opus 5</option>
+        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+      </select>
+    </label>
+    <div class="note">
+      <strong>Privacy:</strong> the key is stored in <code>chrome.storage.local</code> on this
+      machine only — it is never synced and never sent anywhere except
+      <code>api.anthropic.com</code>. Choosing this option means the full transcript of
+      each chat you save is sent to the Anthropic API under your own key and billed to your
+      account. The default "ask the open chat" option sends nothing outside claude.ai.
+    </div>
+  </div>
+
+  <h2>Google Drive sync</h2>
+  <label class="check"><input type="checkbox" id="driveEnabled"> Enable Drive sync (off by default)</label>
+  <label class="field">
+    <span>Scope</span>
+    <select id="driveScope">
+      <option value="drive.file">drive.file — a visible "Claude Chat Transfer" folder in My Drive</option>
+      <option value="appDataFolder">appDataFolder — hidden app storage, not visible in Drive</option>
+    </select>
+  </label>
+  <div class="row">
+    <button id="connect" class="primary">Connect Drive</button>
+    <button id="disconnect">Disconnect</button>
+  </div>
+  <div class="note">
+    Both scopes are limited to files this extension creates. The extension can never read
+    the rest of your Drive. Chat content goes only to your own Drive account.
+    Drive sync needs a one-time Google Cloud setup — see the README.
+  </div>
+
+  <h2>Debug</h2>
+  <label class="check"><input type="checkbox" id="debug"> Log extraction details to the page console</label>
+  <div class="note">
+    Debug mode is the only situation in which chat content is written to the console,
+    and it stays on your machine. Leave it off unless you are reporting broken extraction.
+  </div>
+
+  <div id="status" aria-live="polite"></div>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
