@@ -63,11 +63,22 @@ const HANDLERS = {
     const brief = await requestBriefInChat(progress);
     progress('Reading the conversation…');
     const chat = await extractChat();
-    // The brief prompt and reply are part of this chat now; keep them out of
-    // the saved transcript so the brief is not duplicated inside it.
-    chat.messages = chat.messages.slice(0, -2);
-    chat.messageCount = chat.messages.length;
-    chat.markdown = renderAgain(chat);
+    // The brief prompt and its reply are turns in this chat now. Drop them
+    // from the saved transcript so the brief is not duplicated inside it —
+    // but only if they are actually the last two turns, so a mis-detection
+    // never silently eats real conversation.
+    const tail = chat.messages.slice(-2);
+    const looksLikeBriefExchange =
+      tail.length === 2 &&
+      tail[0].role === 'user' &&
+      tail[1].role === 'assistant' &&
+      tail[0].content.includes('HANDOFF BRIEF');
+    if (looksLikeBriefExchange) {
+      chat.messages = chat.messages.slice(0, -2);
+      chat.messageCount = chat.messages.length;
+      chat.markdown = renderAgain(chat);
+    }
+    note('brief:trimmed', { trimmed: looksLikeBriefExchange });
     chat.brief = brief;
     return { ok: true, chat };
   },
