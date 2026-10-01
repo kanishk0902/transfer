@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Chat Transfer",
+  "version": "0.1.0",
+  "description": "Save a Claude chat and import it into another Claude account.",
+  "permissions": ["storage", "unlimitedStorage", "activeTab"],
+  "host_permissions": ["https://claude.ai/*"],
+  "action": { "default_popup": "popup.html", "default_title": "Claude Chat Transfer" },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
