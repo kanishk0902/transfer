@@ -1,7 +1,13 @@
 // chrome.storage.local is the source of truth. Pure merge logic lives here so
 // it can be unit-tested without a browser.
+import { DEFAULT_THRESHOLD } from './trigger.js';
 
-export const KEYS = { chats: 'chats', settings: 'settings' };
+export const KEYS = {
+  chats: 'chats',
+  settings: 'settings',
+  lastUsage: 'lastUsage',
+  monitor: 'monitorState'
+};
 
 export const DEFAULT_SETTINGS = {
   debug: false,
@@ -10,8 +16,46 @@ export const DEFAULT_SETTINGS = {
   apiModel: 'claude-sonnet-5',
   driveEnabled: false,
   driveScope: 'drive.file',   // 'drive.file' | 'appDataFolder'
-  sort: 'savedAt'
+  sort: 'savedAt',
+
+  // --- auto-save near the usage limit (old account) ---
+  autoSaveEnabled: true,      // save the transcript automatically near the cap
+  autoSaveThreshold: DEFAULT_THRESHOLD,
+  usagePollEnabled: true,     // poll the usage page at all
+
+  // --- auto-brief on import (new account) ---
+  autoSendOnImport: true,     // submit the import message without a click
+  captureBriefOnImport: true  // store the reply back onto the saved chat
 };
+
+/** Monitor state that must survive a service-worker suspend. */
+export const DEFAULT_MONITOR_STATE = {
+  armed: true,
+  lastFiredAt: null,
+  resetAt: null
+};
+
+export async function getLastUsage() {
+  const { [KEYS.lastUsage]: u = null } = await chrome.storage.local.get(KEYS.lastUsage);
+  return u;
+}
+
+export async function setLastUsage(usage) {
+  await chrome.storage.local.set({ [KEYS.lastUsage]: usage });
+  return usage;
+}
+
+/** Rebuilt from storage on every worker wake-up — never held in memory only. */
+export async function getMonitorState() {
+  const { [KEYS.monitor]: s = {} } = await chrome.storage.local.get(KEYS.monitor);
+  return { ...DEFAULT_MONITOR_STATE, ...s };
+}
+
+export async function setMonitorState(patch) {
+  const next = { ...(await getMonitorState()), ...patch };
+  await chrome.storage.local.set({ [KEYS.monitor]: next });
+  return next;
+}
 
 /**
  * Merge two chat lists, deduping by id with newest-savedAt winning.

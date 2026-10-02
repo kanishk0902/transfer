@@ -53,6 +53,33 @@
     </div>
   </div>
 
+  <h2>Auto-save near the usage limit</h2>
+  <div class="note">
+    The old account only ever <strong>saves the transcript</strong>. It never sends a message
+    and never generates a brief, so auto-save costs zero usage. The brief is written later,
+    by the new account, when you import.
+  </div>
+  <label class="check"><input type="checkbox" id="autoSaveEnabled"> Auto-save the transcript when usage is near the limit</label>
+  <label class="check"><input type="checkbox" id="usagePollEnabled"> Check the usage page periodically (every 5 min, every 1 min above 85%)</label>
+  <label class="field">
+    <span>Trigger threshold (<span id="thresholdValue">95</span>%)</span>
+    <input id="autoSaveThreshold" type="range" min="50" max="99" step="1" style="width:100%">
+  </label>
+  <div id="usageNow" class="note">Usage: not checked yet.</div>
+  <div class="row">
+    <button id="testAutoSave" class="primary">Test auto-save now</button>
+    <button id="checkUsage">Check usage now</button>
+  </div>
+
+  <h2>Auto-brief on import</h2>
+  <label class="check"><input type="checkbox" id="autoSendOnImport"> Send the import message automatically (after verifying the attachment)</label>
+  <label class="check"><input type="checkbox" id="captureBriefOnImport"> Capture Claude's brief back onto the saved chat</label>
+  <div class="note">
+    If the attachment or the inserted text cannot be verified, nothing is sent — the draft
+    is left in the composer for you to check. The message is never auto-sent twice for the
+    same import, and never when the composer already has text you typed.
+  </div>
+
   <h2>Google Drive sync</h2>
   <label class="check"><input type="checkbox" id="driveEnabled"> Enable Drive sync (off by default)</label>
   <label class="field">

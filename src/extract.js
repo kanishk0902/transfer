@@ -1,4 +1,4 @@
-import { SELECTORS, findMessages, conversationId, chatTitle, accountHint, pick, pickWhich } from './site.js';
+import { SELECTORS, findMessages, conversationId, chatTitle, accountHint, pick, pickWhich, findLimitBanner, LIMIT_BANNER_SELECTORS } from './site.js';
 import { htmlToMarkdown } from './markdown.js';
 import { note, noteContent } from './debug.js';
 import { sleep } from './util.js';
@@ -94,6 +94,10 @@ export function debugSnapshot() {
       stopButton: pickWhich(SELECTORS.stopButton),
       scroller: pickWhich(SELECTORS.scroller)
     },
+    limitBanner: findLimitBanner(document),
+    limitBannerSelectors: LIMIT_BANNER_SELECTORS.map(sel => ({
+      sel, count: document.querySelectorAll(sel).length
+    })),
     groups: SELECTORS.messageGroups.map(g => ({
       name: g.name,
       user: document.querySelectorAll(g.user).length,

@@ -60,6 +60,22 @@ for (const ref of referenced) {
   if (!existsSync(path(ref))) fail(`manifest references missing file: ${ref}`);
 }
 if (manifest.manifest_version !== 3) fail('manifest_version must be 3');
+
+// The usage monitor needs these; losing one fails silently at runtime.
+for (const perm of ['alarms', 'notifications', 'tabs', 'storage']) {
+  if (!manifest.permissions.includes(perm)) fail(`manifest is missing the "${perm}" permission`);
+}
+const usageScript = manifest.content_scripts.find(c =>
+  c.matches.some(m => m.includes('/settings/usage')));
+if (!usageScript) fail('no content script registered for the usage page');
+else if (!usageScript.js.includes('usage-reader.js')) fail('the usage page script is not usage-reader.js');
+
+// src/usage.js is imported dynamically by the usage reader, so it must be
+// web-accessible like the rest of src/.
+const war = (manifest.web_accessible_resources || []).flatMap(r => r.resources);
+if (!war.some(r => r === 'src/*.js' || r === 'src/usage.js')) {
+  fail('src/usage.js is not web-accessible, so usage-reader.js cannot import it');
+}
 if (!manifest.oauth2.client_id.includes('apps.googleusercontent.com')) {
   fail('oauth2.client_id looks malformed');
 }

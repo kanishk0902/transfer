@@ -26,11 +26,11 @@ const STREAM_MAX_MS = 5 * 60 * 1000;
 const QUIET_MS = 2500;
 
 /** Streaming is in progress when a stop button is present. */
-function isStreaming() {
+export function isStreaming() {
   return !!pick(SELECTORS.stopButton);
 }
 
-function lastAssistantEl() {
+export function lastAssistantEl() {
   const { nodes } = findMessages();
   for (let i = nodes.length - 1; i >= 0; i--) if (nodes[i].role === 'assistant') return nodes[i].el;
   return null;
@@ -77,7 +77,7 @@ export async function requestBriefInChat(onProgress = () => {}) {
  * message stopped growing for a quiet period. The quiet check covers UIs where
  * the buttons swap before the final tokens land.
  */
-async function waitForStreamEnd(onProgress) {
+export async function waitForStreamEnd(onProgress = () => {}) {
   const deadline = Date.now() + STREAM_MAX_MS;
   let lastLen = -1, quietSince = null;
 
@@ -89,7 +89,7 @@ async function waitForStreamEnd(onProgress) {
     if (len !== lastLen) {
       lastLen = len;
       quietSince = null;
-      onProgress(`Claude is writing the brief… (${len} chars)`);
+      onProgress(`Claude is writing… (${len} chars)`);
       continue;
     }
     const buttonsIdle = !isStreaming() && !!pick(SELECTORS.sendButton);
@@ -99,11 +99,11 @@ async function waitForStreamEnd(onProgress) {
       return;
     }
   }
-  throw new Error('Timed out waiting for the brief. It may still be generating — try saving again in a moment.');
+  throw new Error('Timed out waiting for Claude to finish. It may still be generating — try again in a moment.');
 }
 
 /** Click send if we can find it; otherwise press Enter in the editor. */
-async function submit() {
+export async function submit() {
   const btn = pick(SELECTORS.sendButton);
   if (btn && !btn.disabled) {
     btn.click();
@@ -122,4 +122,29 @@ async function submit() {
     const ed = pick(SELECTORS.editor);
     return isStreaming() || (ed && ed.textContent.trim().length === 0);
   }, SUBMIT_TIMEOUT_MS);
+}
+
+/**
+ * Wait for a reply to start and finish, then return it as markdown.
+ * This is the same three signals the brief flow uses: the stop button
+ * disappearing, the send button returning, and the last message going quiet.
+ */
+export async function awaitReplyMarkdown(beforeCount, onProgress = () => {}) {
+  const started = await waitFor(
+    () => isStreaming() || findMessages().nodes.length > beforeCount,
+    STREAM_START_MS
+  );
+  if (!started) throw new Error('Claude did not start replying. Check the chat and try again.');
+
+  await waitForStreamEnd(onProgress);
+
+  const el = lastAssistantEl();
+  if (!el) throw new Error('Could not read the reply back from the chat.');
+  const text = htmlToMarkdown(el, {
+    artifactSelector: SELECTORS.artifact,
+    attachmentSelector: SELECTORS.attachmentInMessage
+  });
+  if (!text.trim()) throw new Error('The reply came back empty.');
+  note('reply:captured', { chars: text.length });
+  return text;
 }

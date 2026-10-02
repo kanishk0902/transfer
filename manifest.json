@@ -3,7 +3,15 @@
   "name": "Claude Chat Transfer",
   "version": "0.4.0",
   "description": "Save a Claude chat with a handoff brief and import it into another Claude account.",
-  "permissions": ["storage", "unlimitedStorage", "activeTab", "identity"],
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "activeTab",
+    "identity",
+    "alarms",
+    "notifications",
+    "tabs"
+  ],
   "host_permissions": [
     "https://claude.ai/*",
     "https://www.googleapis.com/*"
@@ -11,26 +19,56 @@
   "action": {
     "default_popup": "popup.html",
     "default_title": "Claude Chat Transfer",
-    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
-  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "options_page": "options.html",
-  "background": { "service_worker": "background.js", "type": "module" },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
   "content_scripts": [
     {
-      "matches": ["https://claude.ai/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://claude.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://claude.ai/settings/usage*"
+      ],
+      "js": [
+        "usage-reader.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/*.js"],
-      "matches": ["https://claude.ai/*"]
+      "resources": [
+        "src/*.js"
+      ],
+      "matches": [
+        "https://claude.ai/*"
+      ]
     }
   ],
   "oauth2": {
     "client_id": "REPLACE_WITH_YOUR_CHROME_EXTENSION_OAUTH_CLIENT_ID.apps.googleusercontent.com",
-    "scopes": ["https://www.googleapis.com/auth/drive.file"]
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.file"
+    ]
   }
 }

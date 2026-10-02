@@ -78,3 +78,63 @@ test('sort comparators order as expected', () => {
   assert.deepEqual([a, b].sort(byDate).map(c => c.id), ['b', 'a']);
   assert.deepEqual([a, b].sort(byTitle).map(c => c.id), ['b', 'a']);
 });
+
+// ---- auto-save / auto-brief settings and merge behaviour ----
+
+import { DEFAULT_SETTINGS, DEFAULT_MONITOR_STATE } from '../src/storage.js';
+import { DEFAULT_THRESHOLD } from '../src/trigger.js';
+import { defaultImportMode } from '../src/compose.js';
+
+test('auto-save and auto-brief default to on, with a 95% threshold', () => {
+  assert.equal(DEFAULT_SETTINGS.autoSaveEnabled, true);
+  assert.equal(DEFAULT_SETTINGS.usagePollEnabled, true);
+  assert.equal(DEFAULT_SETTINGS.autoSendOnImport, true);
+  assert.equal(DEFAULT_SETTINGS.captureBriefOnImport, true);
+  assert.equal(DEFAULT_SETTINGS.autoSaveThreshold, DEFAULT_THRESHOLD);
+  assert.equal(DEFAULT_SETTINGS.autoSaveThreshold, 95);
+});
+
+test('the monitor starts armed, so the first high reading fires', () => {
+  assert.equal(DEFAULT_MONITOR_STATE.armed, true);
+  assert.equal(DEFAULT_MONITOR_STATE.lastFiredAt, null);
+});
+
+test('an auto-save overwrites the previous save of the same chat id', () => {
+  const older = { id: 'c1', title: 'Old', messageCount: 10, savedAt: '2026-10-01T00:00:00.000Z' };
+  const newer = {
+    id: 'c1', title: 'New', messageCount: 40, savedAt: '2026-10-02T00:00:00.000Z',
+    autoSaved: true, usagePercent: 96
+  };
+  const merged = mergeChats([older], [newer]);
+  assert.equal(merged.length, 1, 'one entry per chat id');
+  assert.equal(merged[0].messageCount, 40);
+  assert.equal(merged[0].autoSaved, true);
+  assert.equal(merged[0].usagePercent, 96);
+});
+
+test('an auto-save does not wipe a brief the chat already had', () => {
+  const withBrief = {
+    id: 'c1', brief: 'EARLIER BRIEF', messageCount: 10,
+    savedAt: '2026-10-01T00:00:00.000Z'
+  };
+  const autoSaved = {
+    id: 'c1', messageCount: 40, autoSaved: true,
+    savedAt: '2026-10-02T00:00:00.000Z'
+  };
+  const merged = mergeChats([withBrief], [autoSaved]);
+  assert.equal(merged[0].brief, 'EARLIER BRIEF', 'the brief survives a transcript-only auto-save');
+  assert.equal(merged[0].messageCount, 40);
+});
+
+test('a brief captured on import flips the default import mode for next time', () => {
+  const autoSaved = { id: 'c1', title: 'T', markdown: 'BODY', autoSaved: true, savedAt: '2026-10-02T00:00:00.000Z' };
+  assert.equal(defaultImportMode(autoSaved), 'auto-brief');
+
+  const afterImport = mergeChats([autoSaved], [{
+    ...autoSaved, brief: 'CAPTURED BRIEF', briefMethod: 'claude-import',
+    savedAt: '2026-10-02T01:00:00.000Z'
+  }]);
+  assert.equal(afterImport[0].brief, 'CAPTURED BRIEF');
+  assert.equal(afterImport[0].briefMethod, 'claude-import');
+  assert.equal(defaultImportMode(afterImport[0]), 'brief+file');
+});

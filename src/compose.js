@@ -94,3 +94,100 @@ function section(tag, body) {
 export function slug(title) {
   return (title || '').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_').slice(0, 60) || 'chat';
 }
+
+// ---------------------------------------------------------------------------
+// Auto-brief on import (new account). Asks the fresh chat to read the attached
+// transcript and write the handoff brief itself, so the old account spends
+// nothing. Wording lives here and is covered by tests.
+// ---------------------------------------------------------------------------
+
+export const BRIEF_SECTIONS = [
+  'Goal',
+  'Key decisions',
+  'Current state',
+  'Important code and snippets',
+  'Open problems',
+  'Next steps'
+];
+
+const AUTO_BRIEF_LEAD_FILE =
+  'Attached is the full transcript of a previous conversation I had in another ' +
+  'Claude account. Read it carefully.';
+
+const AUTO_BRIEF_LEAD_PASTE =
+  'Below, inside <previous_conversation> tags, is the full transcript of a previous ' +
+  'conversation I had in another Claude account. Read it carefully.';
+
+const AUTO_BRIEF_TASK = [
+  '',
+  'Then write a structured handoff brief using exactly these markdown headings,',
+  'in this order:',
+  '',
+  ...BRIEF_SECTIONS.map(s => '## ' + s),
+  '',
+  'Be concrete and specific: include file names, identifiers, and short code',
+  'snippets where they matter.',
+  '',
+  'After the brief, ask me what I want to continue with.'
+].join('\n');
+
+/**
+ * The import message for a chat with no brief yet: attach the transcript as a
+ * file and ask this chat to produce the brief.
+ * Returns the same shape as composeImport.
+ */
+export function composeAutoBrief(chat) {
+  const markdown = chat.markdown || '';
+  if (!markdown.trim()) throw new Error('This saved chat has no transcript to import.');
+
+  if (markdown.length > LARGE_TRANSCRIPT_CHARS) {
+    // Too big to paste if the attach fails, but a file is still fine.
+    return {
+      text: AUTO_BRIEF_LEAD_FILE + AUTO_BRIEF_TASK,
+      attach: { filename: `previous-chat_${slug(chat.title)}.md`, content: markdown },
+      effectiveMode: 'auto-brief',
+      requiresAttach: true,
+      reason: null
+    };
+  }
+  return {
+    text: AUTO_BRIEF_LEAD_FILE + AUTO_BRIEF_TASK,
+    attach: { filename: `previous-chat_${slug(chat.title)}.md`, content: markdown },
+    effectiveMode: 'auto-brief',
+    requiresAttach: false,
+    reason: null
+  };
+}
+
+/** Attach failed: paste the transcript inside <previous_conversation> instead. */
+export function autoBriefPasteFallback(chat) {
+  const markdown = chat.markdown || '';
+  if (markdown.length > LARGE_TRANSCRIPT_CHARS) {
+    return {
+      text: null,
+      attach: null,
+      effectiveMode: 'auto-brief',
+      reason: `Could not attach the file and the transcript is ${Math.round(
+        markdown.length / 1000
+      )}k characters — too large to paste. Nothing was sent.`,
+      failed: true
+    };
+  }
+  return {
+    text: AUTO_BRIEF_LEAD_PASTE + AUTO_BRIEF_TASK + '\n\n' +
+          section('previous_conversation', markdown),
+    attach: null,
+    effectiveMode: 'auto-brief+paste',
+    reason: 'File attach failed — pasted the transcript inline instead.',
+    failed: false
+  };
+}
+
+/**
+ * Which import mode a saved chat should default to. A chat that has acquired a
+ * brief (including one written by the new account) defaults to 'brief+file';
+ * one without defaults to the auto-brief flow.
+ */
+export function defaultImportMode(chat) {
+  return (chat && String(chat.brief || '').trim()) ? 'brief+file' : 'auto-brief';
+}

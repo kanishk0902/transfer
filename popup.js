@@ -1,7 +1,8 @@
 import {
   getChats, setChats, saveChat, removeChat, mergeChats,
-  getSettings, setSettings, searchChats, byDate, byTitle
+  getSettings, setSettings, searchChats, byDate, byTitle, getLastUsage
 } from './src/storage.js';
+import { defaultImportMode } from './src/compose.js';
 
 const $ = s => document.querySelector(s);
 let settings = null;
@@ -103,15 +104,29 @@ function setBusy(busy) {
 async function doImport(chat, mode) {
   setBusy(true);
   try {
+    if (mode === 'auto-brief' && !String(chat.markdown || '').trim()) {
+      throw new Error('This saved chat has no transcript — import it as "Brief only" instead.');
+    }
     status('Preparing the new chat…', 'busy');
     const res = await send({ type: 'IMPORT', chat, mode });
     const how = {
       'brief': 'Brief inserted.',
       'brief+file': 'Brief inserted and transcript attached.',
       'brief+paste': 'Brief and transcript pasted.',
-      'full': 'Full transcript pasted.'
+      'full': 'Full transcript pasted.',
+      'auto-brief': 'Transcript attached and the brief requested.',
+      'auto-brief+paste': 'Transcript pasted and the brief requested.'
     }[res.method] || 'Inserted.';
-    status(how + (res.reason ? ' ' + res.reason : '') + ' Review it, then press send.', 'ok');
+
+    if (res.sent) {
+      const tail = res.briefCaptured
+        ? ' Brief captured and saved onto this chat.'
+        : ' Waiting for Claude in the tab.';
+      status(how + ' Sent.' + (res.reason ? ' ' + res.reason : '') + tail, 'ok');
+      await render();
+    } else {
+      status(how + (res.reason ? ' ' + res.reason : '') + ' Review it, then press send.', 'ok');
+    }
   } catch (e) {
     status(e.message, 'err');
   } finally {
@@ -173,6 +188,9 @@ function chatCard(chat) {
   const title = el('div', { className: 't' }, el('span', { textContent: chat.title || 'Untitled' }));
   const badges = [];
   if (chat.brief) badges.push('brief');
+  if (chat.autoSaved) {
+    badges.push(Number.isFinite(chat.usagePercent) ? `auto @ ${chat.usagePercent}%` : 'auto');
+  }
   if (chat.driveFileId) badges.push('▲ Drive');
   if (badges.length) title.append(el('span', { className: 'badges', textContent: badges.join(' · ') }));
   box.append(title);
@@ -191,9 +209,16 @@ function chatCard(chat) {
   for (const [v, label] of [
     ['brief+file', 'Brief + file'],
     ['brief', 'Brief only'],
-    ['full', 'Full transcript']
+    ['full', 'Full transcript'],
+    ['auto-brief', 'Ask this chat for the brief']
   ]) mode.append(el('option', { value: v, textContent: label }));
-  if (!chat.brief) { mode.value = 'full'; mode.querySelector('option[value=brief]').disabled = true; }
+  // A chat that has a brief defaults to 'Brief + file'; one without defaults to
+  // having the new account write the brief, which costs the old account nothing.
+  mode.value = defaultImportMode(chat);
+  if (!chat.brief) {
+    mode.querySelector('option[value=brief]').disabled = true;
+    mode.querySelector('option[value="brief+file"]').disabled = true;
+  }
 
   row.append(
     btn('Import', () => doImport(chat, mode.value), 'primary'),
@@ -221,7 +246,23 @@ function chatCard(chat) {
   return box;
 }
 
+async function renderUsage() {
+  const el = $('#usage');
+  if (!el) return;
+  try {
+    const u = await getLastUsage();
+    if (!u) { el.textContent = 'Usage: not checked yet.'; return; }
+    if (u.loggedOut) { el.textContent = 'Usage: not signed in to claude.ai.'; return; }
+    if (!Number.isFinite(u.percent)) { el.textContent = 'Usage: could not read the usage page.'; return; }
+    const when = new Date(u.readAt).toLocaleTimeString();
+    el.textContent = `Usage: ${u.percent}%${u.label ? ' (' + u.label + ')' : ''} — read ${when}`;
+  } catch {
+    el.textContent = '';
+  }
+}
+
 async function render() {
+  await renderUsage();
   const list = $('#list');
   list.textContent = '';
   const all = await getChats();
@@ -254,7 +295,26 @@ async function toggleDebug(on) {
 async function copyDebugReport() {
   try {
     const res = await send({ type: 'DEBUG_REPORT' });
-    const text = JSON.stringify({ snapshot: res.snapshot, log: res.log }, null, 2);
+    // The usage page is read in a separate tab, so its raw text and the
+    // selector that matched live in storage, not in the page's own snapshot.
+    let usage = null, monitorLog = null;
+    try { usage = await getLastUsage(); } catch { /* keep going */ }
+    try { monitorLog = (await sendBackground({ type: 'MONITOR_LOG' })).log; } catch { /* keep going */ }
+    const text = JSON.stringify({
+      snapshot: res.snapshot,
+      usage: usage && {
+        percent: usage.percent,
+        label: usage.label,
+        readAt: usage.readAt,
+        loggedOut: !!usage.loggedOut,
+        matchedSelector: usage.matchedSelector,
+        resetHint: usage.resetHint,
+        bars: usage.bars,
+        rawText: usage.rawText
+      },
+      monitorLog,
+      log: res.log
+    }, null, 2);
     await navigator.clipboard.writeText(text);
     status('Debug report copied. Paste it into a bug report.', 'ok');
   } catch (e) {

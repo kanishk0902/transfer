@@ -179,3 +179,129 @@ export function accountHint(doc = document) {
     return text && text.length < 80 ? text : null;
   } catch { return null; }
 }
+
+// ---------------------------------------------------------------------------
+// Usage page (https://claude.ai/settings/usage)
+// ---------------------------------------------------------------------------
+// claude.ai renders usage as one or more progress bars. The markup has moved
+// around, so we try hooks in order of how specific they are and fall back to
+// scanning text for a percentage. Everything site-shaped stays in this file.
+
+export const USAGE_URL = 'https://claude.ai/settings/usage';
+
+export const USAGE_SELECTORS = {
+  // Containers that hold a single usage meter plus its label.
+  bar: [
+    '[data-testid*="usage" i]',
+    '[role="progressbar"]',
+    '[class*="usage"] [class*="progress"]',
+    '[class*="usage-bar"]',
+    'main [class*="progress"]',
+    // Row-level fallback: one labelled row per limit, with the number in text.
+    '[class*="usage"] [class*="row"]',
+    '[class*="usage"] li',
+    '[class*="usage"] > div'
+  ],
+  // Where a bar's percentage may be stated, in priority order.
+  percentAttrs: ['aria-valuenow', 'data-percent', 'data-value'],
+  // Label for a bar (which limit it is: session, weekly, Opus, …).
+  label: [
+    '[data-testid*="label" i]',
+    'h2', 'h3', 'h4',
+    '[class*="title"]',
+    '[class*="label"]'
+  ],
+  // Fallback: the whole usage region, scanned as text.
+  region: ['main', '[role="main"]', 'body']
+};
+
+// Login redirect detection: if any of these match, we are not signed in.
+export const LOGIN_SELECTORS = [
+  'input[type="password"]',
+  'input[name="email"]',
+  'button[data-testid="login-button"]',
+  'a[href*="/login"][class*="button"]'
+];
+
+export const LOGIN_URL_PATTERN = /\/(login|signin|sign-in|oauth|auth)\b/i;
+
+// ---------------------------------------------------------------------------
+// Limit banners shown inside a chat
+// ---------------------------------------------------------------------------
+
+export const LIMIT_BANNER_SELECTORS = [
+  '[data-testid*="limit" i]',
+  '[role="alert"]',
+  '[role="status"]',
+  '[class*="banner"]',
+  '[class*="warning"]',
+  '[class*="rate-limit"]'
+];
+
+// Lowercased substrings. `reached` phrases mean the limit is already hit;
+// `approaching` phrases mean it is close. Both are triggers.
+export const LIMIT_PHRASES = {
+  reached: [
+    'limit reached',
+    'you’ve reached your limit',
+    "you've reached your limit",
+    'you are out of',
+    'usage limit reached',
+    'message limit reached',
+    'your limit resets'
+  ],
+  approaching: [
+    'approaching your limit',
+    'approaching the limit',
+    'nearing your limit',
+    'running low on',
+    'you have used',
+    'left until your limit resets'
+  ]
+};
+
+/** Reset-time phrasing, e.g. "resets at 5 PM". Used to re-arm the trigger. */
+export const RESET_PATTERN = /resets?\s+(?:at|on|in)\s+([^.<\n]{1,40})/i;
+
+/**
+ * Pure: does this text look like a limit banner? Returns
+ * { kind: 'reached' | 'approaching', phrase } or null.
+ * `reached` wins over `approaching` when both appear.
+ */
+export function matchLimitPhrase(text) {
+  const hay = String(text || '').toLowerCase().replace(/\s+/g, ' ');
+  if (!hay) return null;
+  for (const kind of ['reached', 'approaching']) {
+    for (const phrase of LIMIT_PHRASES[kind]) {
+      if (hay.includes(phrase.toLowerCase())) return { kind, phrase };
+    }
+  }
+  return null;
+}
+
+/**
+ * Find a limit banner in the page. Returns
+ * { kind, phrase, selector, text } or null. Never throws.
+ */
+export function findLimitBanner(doc = document) {
+  try {
+    for (const sel of LIMIT_BANNER_SELECTORS) {
+      for (const el of doc.querySelectorAll(sel)) {
+        const text = (el.textContent || '').trim();
+        // Banners are short. A long match is almost certainly the whole page.
+        if (!text || text.length > 400) continue;
+        const hit = matchLimitPhrase(text);
+        if (hit) return { ...hit, selector: sel, text: text.slice(0, 200) };
+      }
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+/** True when the document looks like the login page rather than the app. */
+export function looksLoggedOut(doc = document, href = '') {
+  try {
+    if (LOGIN_URL_PATTERN.test(String(href))) return true;
+    return LOGIN_SELECTORS.some(sel => doc.querySelector(sel));
+  } catch { return false; }
+}
